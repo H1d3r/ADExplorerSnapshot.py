@@ -9,7 +9,7 @@ import logging
 import shutil
 import struct
 from pathlib import Path
-from adexpsnapshot.treeview.section_encoder import build_nc_tree, encode_section
+from adexpsnapshot.treeview.section_encoder import build_nc_tree, build_stub_nc_tree, encode_section
 from adexpsnapshot.treeview.structure import treeview_structure
 from adexpsnapshot.treeview.synthetic import create_synthetic_objects_data
 
@@ -111,6 +111,11 @@ def enrich_snapshot(ades):
     domain_tree = build_nc_tree(snap, ades.domain_dn, lambda dn: dn.endswith(ades.domain_dn) and not dn.endswith(ades.config_dn) and not dn.endswith(domain_dns_zones_root) and not dn.endswith(forest_dns_zones_root), dncache, synthetic_collector)
     config_tree = build_nc_tree(snap, ades.config_dn, lambda dn: dn.endswith(ades.config_dn) and not dn.endswith(ades.schema_dn), dncache, synthetic_collector)
     schema_tree = build_nc_tree(snap, ades.schema_dn, lambda dn: dn.endswith(ades.schema_dn), dncache, synthetic_collector)
+    if schema_tree is None:
+        logging.info(
+            "No Schema NC objects in snapshot; using synthetic schema root for treeview"
+        )
+        schema_tree = build_stub_nc_tree(ades.schema_dn, synthetic_collector)
 
     missing_required = [name for name, tree in (("Domain", domain_tree), ("Configuration", config_tree), ("Schema", schema_tree)) if tree is None]
     if missing_required:

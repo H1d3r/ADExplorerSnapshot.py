@@ -104,6 +104,24 @@ def build_nc_tree(snap, nc_root, nc_filter, dncache=None, synthetic_collector=No
     return build_node(root_dn)
 
 
+def build_stub_nc_tree(nc_root, synthetic_collector=None):
+    """
+    Build a minimal single-node NC tree when a naming context has no LDAP objects.
+
+    Bloodhound-style snapshots omit Schema NC enumeration but ADExplorer still
+    expects a Schema section in treeview metadata.
+    """
+    if synthetic_collector is not None:
+        synthetic_collector[nc_root] = True
+
+    return {
+        'obj_idx': -1,
+        'obj_offset': 0,
+        'dn': nc_root,
+        'children': [],
+    }
+
+
 def encode_section(tree):
     """
     Universal section encoder using cstruct for type safety.
@@ -159,14 +177,6 @@ def encode_section(tree):
         # Position this node
         node_word_positions[obj_idx] = current_word_pos
         
-        # Compute size and cache children classification
-        # All nodes reaching here should be parents (leaf children were marked inline_only)
-        if not node_children:
-            import logging
-            logging.error(f"Unexpected: Node {obj_idx} is a leaf but not inline_only (root with no children?)")
-            logging.error("This edge case is not supported. NC roots should always have children.")
-            raise ValueError(f"Unsupported edge case: root node {obj_idx} has no children")
-        
         # Classify children ONCE
         entries_with_children = []
         entries_without_children = []
@@ -175,13 +185,13 @@ def encode_section(tree):
                 entries_with_children.append(c)
             else:
                 entries_without_children.append(c)
-        
+
         # ParentNode size: header(16) + child_offsets(count*4) + inline_child_offsets(count*8)
         size = 4 + len(entries_with_children) + len(entries_without_children) * 2
-        
+
         # Cache for PASS 3 (just the lists, compute len() when needed)
         node_metadata[obj_idx] = (entries_with_children, entries_without_children)
-        
+
         current_word_pos += size
     
     # PASS 3: Write data using cstruct structures
